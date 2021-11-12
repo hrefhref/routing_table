@@ -130,7 +130,7 @@ impl ::std::convert::From<TupleV4> for Nibbles {
 
 impl ::std::convert::From<TupleV4> for u32 {
     fn from(a: TupleV4) -> u32 {
-        (a.a as u32) << 24 | (a.b as u32) << 16 | (a.c as u32) << 8 | (a.d as u32) << 0
+        (a.a as u32) << 24 | (a.b as u32) << 16 | (a.c as u32) << 8 | (a.d as u32)
     }
 }
 
@@ -148,16 +148,17 @@ struct TupleV6 {
 }
 
 impl TupleV6 {
+    #[allow(clippy::too_many_arguments)]
     fn new(a1: u16, a2: u16, a3: u16, a4: u16, a5: u16, a6: u16, a7: u16, a8: u16) -> Self {
         TupleV6 {
-            a1: a1,
-            a2: a2,
-            a3: a3,
-            a4: a4,
-            a5: a5,
-            a6: a6,
-            a7: a7,
-            a8: a8,
+            a1,
+            a2,
+            a3,
+            a4,
+            a5,
+            a6,
+            a7,
+            a8,
         }
     }
 
@@ -250,8 +251,8 @@ fn length(table_resource: ResourceArc<TableResource>) -> NifResult<usize> {
 }
 
 #[rustler::nif]
-fn add<'a>(
-    env: Env<'a>,
+fn add(
+    env: Env,
     table_resource: ResourceArc<TableResource>,
     ip: AddrTuple,
     masklen: u32,
@@ -266,8 +267,8 @@ fn add<'a>(
 }
 
 #[rustler::nif]
-fn remove<'a>(
-    env: Env<'a>,
+fn remove(
+    env: Env,
     table_resource: ResourceArc<TableResource>,
     ip: AddrTuple,
     masklen: u32,
@@ -281,11 +282,7 @@ fn remove<'a>(
 }
 
 #[rustler::nif]
-fn longest_match<'a>(
-    env: Env<'a>,
-    table_resource: ResourceArc<TableResource>,
-    ip: AddrTuple,
-) -> Term {
+fn longest_match(env: Env, table_resource: ResourceArc<TableResource>, ip: AddrTuple) -> Term {
     let tree = table_resource.tree.lock().unwrap();
     if let Some((bits_matched, value)) = tree.longest_match(Nibbles::from(ip).as_ref()) {
         let prefix = ip.mask(bits_matched);
@@ -304,8 +301,8 @@ fn longest_match<'a>(
 }
 
 #[rustler::nif]
-fn exact_match<'a>(
-    env: Env<'a>,
+fn exact_match(
+    env: Env,
     table_resource: ResourceArc<TableResource>,
     ip: AddrTuple,
     masklen: u32,
@@ -319,7 +316,7 @@ fn exact_match<'a>(
 }
 
 #[rustler::nif]
-fn memory<'a>(env: Env<'a>, table_resource: ResourceArc<TableResource>) -> Term {
+fn memory(env: Env, table_resource: ResourceArc<TableResource>) -> Term {
     let tree = table_resource.tree.lock().unwrap();
     let (nodes, results) = tree.mem_usage();
     make_tuple(env, &[nodes.encode(env), results.encode(env)])
