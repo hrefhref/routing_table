@@ -1,9 +1,9 @@
-defmodule TreeBitmap.MixProject do
+defmodule RoutingTable.MixProject do
   use Mix.Project
 
   def project do
     [
-      app: :tree_bitmap,
+      app: :routing_table,
       version: "0.1.0",
       elixir: "~> 1.12-rc",
       start_permanent: Mix.env() == :prod,

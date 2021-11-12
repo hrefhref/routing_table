@@ -1,12 +1,25 @@
-defmodule TreeBitmap do
-  alias TreeBitmap.NIF
+defmodule RoutingTable do
+  alias RoutingTable.TreeBitmap
   defstruct [:i4, :i6, :ets]
 
   @opaque t() :: %__MODULE__{}
   @type masklen :: non_neg_integer()
 
+  @moduledoc """
+  Efficient routing table.
+
+  ```elixir
+  table = RoutingTable.new()
+  RoutingTable.add(table, {10, 69, 0, 0}, 16, :vpn)
+  RoutingTable.add(table, {10, 69, 1, 0}, 24, :lan)
+  :vpn = RoutingTable.longest_match(table, {10, 69, 2, 1})
+  :lan = RoutingTable.longest_match(table, {10, 69, 1, 1})
+  nil = RoutingTable.longest_match(table, {10, 68, 1, 1})
+  ```
+  """
+
   def new(_opts \\ []) do
-    %__MODULE__{i4: NIF.new(), i6: NIF.new(), ets: :ets.new(__MODULE__, [:public])}
+    %__MODULE__{i4: TreeBitmap.new(), i6: TreeBitmap.new(), ets: :ets.new(__MODULE__, [:public])}
   end
 
   @spec add(t(), :inet.ip_address(), masklen(), any()) :: nil | any()
@@ -78,40 +91,49 @@ defmodule TreeBitmap do
   @type tree_memory() :: {nodes :: non_neg_integer(), results :: non_neg_integer()}
   @spec memory(t()) :: %{inet4: tree_memory(), inet6: tree_memory(), ets: non_neg_integer()}
   def memory(tree) do
-    %{inet4: NIF.memory(tree.i4), inet6: NIF.memory(tree.i6), ets: :ets.info(tree.ets, :memory)}
+    %{inet4: TreeBitmap.memory(tree.i4), inet6: TreeBitmap.memory(tree.i6), ets: :ets.info(tree.ets, :memory)}
   end
 
   @spec length(t()) :: %{inet4: non_neg_integer(), inet6: non_neg_integer(), ets: non_neg_integer()}
   def length(tree) do
-    %{inet4: NIF.length(tree.i4), inet6: NIF.length(tree.i6), ets: :ets.info(tree.ets, :size)}
+    %{inet4: TreeBitmap.length(tree.i4), inet6: TreeBitmap.length(tree.i6), ets: :ets.info(tree.ets, :size)}
   end
 
   defp add(tree, tbm, ip, masklen, value) do
-    id = :ets.update_counter(tree.ets, {__MODULE__, :counter}, 1, {{__MODULE__, :counter}, -1})
-    :ets.insert(tree.ets, {id, value})
-    {:ok, prev_id} = NIF.add(tbm, ip, masklen, id)
+    id = case :ets.match(tree.ets, {:'$1', :_, value}) do
+      [[id]] ->
+        :ets.update_counter(tree.ets, id, 1)
+        id
+      [] ->
+        id = :ets.update_counter(tree.ets, {__MODULE__, :counter}, 1, {{__MODULE__, :counter}, -1, 0})
+        :ets.insert(tree.ets, {id, 1, value})
+        id
+    end
+    {:ok, prev_id} = TreeBitmap.add(tbm, ip, masklen, id)
     prev = if prev_id do
-      [{^prev_id, value}] = :ets.lookup(tree.ets, prev_id)
-      :ets.delete(tree.ets, prev_id)
+      [{^prev_id, _refc, value}] = :ets.lookup(tree.ets, prev_id)
+      refc = :ets.update_counter(tree.ets, id, -1)
+      if refc < 1, do: :ets.delete(tree.ets, prev_id)
       value
     end
     prev
   end
 
   defp remove(tree, tbm, ip, masklen) do
-    {:ok, id} = NIF.remove(tbm, ip, masklen)
+    {:ok, id} = TreeBitmap.remove(tbm, ip, masklen)
     prev = if id do
-      [{^id, value}] = :ets.lookup(tree.ets, id)
-      :ets.delete(tree.ets, id)
+      [{^id, _refc, value}] = :ets.lookup(tree.ets, id)
+      refc = :ets.update_counter(tree.ets, id, -1)
+      if refc < 1, do: :ets.delete(tree.ets, id)
       value
     end
     prev
   end
 
   defp longest_match(tree, tbm, ip) do
-    case NIF.longest_match(tbm, ip) do
+    case TreeBitmap.longest_match(tbm, ip) do
       {:ok, prefix, masklen, id} ->
-        [{^id, value}] = :ets.lookup(tree.ets, id)
+        [{^id, _refc, value}] = :ets.lookup(tree.ets, id)
         %{prefix: to_inet(prefix), len: masklen, value: value}
       {:ok, nil} ->
         nil
@@ -119,24 +141,24 @@ defmodule TreeBitmap do
   end
 
   defp longest_match?(_, tbm, ip) do
-	  case NIF.longest_match(tbm, ip) do
+	  case TreeBitmap.longest_match(tbm, ip) do
       {:ok, nil} -> false
       {:ok, _, _, _} -> true
     end
   end
 
   defp exact_match(tree, tbm, ip, masklen) do
-    case NIF.exact_match(tbm, ip, masklen) do
+    case TreeBitmap.exact_match(tbm, ip, masklen) do
       {:ok, nil} ->
         nil
       {:ok, id} ->
-        [{^id, value}] = :ets.lookup(tree.ets, id)
+        [{^id, _refc, value}] = :ets.lookup(tree.ets, id)
         value
     end
   end
 
   defp exact_match?(_, tbm, ip, masklen) do
-	  case NIF.exact_match(tbm, ip, masklen) do
+	  case TreeBitmap.exact_match(tbm, ip, masklen) do
       {:ok, nil} -> false
       {:ok, _} -> true
     end

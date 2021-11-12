@@ -1,5 +1,5 @@
-defmodule TreeBitmap.NIF do
-  use Rustler, otp_app: :tree_bitmap, crate: "treebitmap_nif"
+defmodule RoutingTable.TreeBitmap do
+  use Rustler, otp_app: :routing_table, crate: "treebitmap_nif"
 
   def new(), do: :erlang.nif_error(:nif_not_loaded)
   def new_with_capacity(_), do: :erlang.nif_error(:nif_not_loaded)

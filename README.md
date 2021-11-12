@@ -1,21 +1,14 @@
-# TreeBitmap
+# Routing Table
 
-**TODO: Add description**
+Efficient RIB for Elixir, implemented using a Rust NIF and [treebitmap](https://crates.io/crates/treebitmap).
 
-## Installation
-
-If [available in Hex](https://hex.pm/docs/publish), the package can be installed
-by adding `tree_bitmap` to your list of dependencies in `mix.exs`:
+The tables covers both IPv4 and IPv6, and values are any erlang term, stored in ets.
 
 ```elixir
-def deps do
-  [
-    {:tree_bitmap, "~> 0.1.0"}
-  ]
-end
+table = RoutingTable.new()
+RoutingTable.add(table, {10, 69, 0, 0}, 16, :vpn)
+RoutingTable.add(table, {10, 69, 1, 0}, 24, :lan)
+:vpn = RoutingTable.longest_match(table, {10, 69, 2, 1})
+:lan = RoutingTable.longest_match(table, {10, 69, 1, 1})
+nil = RoutingTable.longest_match(table, {10, 68, 1, 1})
 ```
-
-Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
-and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
-be found at [https://hexdocs.pm/tree_bitmap](https://hexdocs.pm/tree_bitmap).
-

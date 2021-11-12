@@ -17,32 +17,8 @@ mod atoms {
     }
 }
 
-trait Address {
+trait Maskable {
     fn mask(self, masklen: u32) -> Self;
-}
-
-#[derive(NifUntaggedEnum, Copy, Clone)]
-enum AddrTuple {
-    V4(TupleV4),
-    V6(TupleV6)
-}
-
-impl Address for AddrTuple {
-    fn mask(self, masklen: u32) -> Self {
-        match self {
-            AddrTuple::V4(tuple_v4) => AddrTuple::V4(tuple_v4.mask(masklen)),
-            AddrTuple::V6(tuple_v6) => AddrTuple::V6(tuple_v6.mask(masklen))
-        }
-    }
-}
-
-#[derive(Debug, NifRecord, Copy, Clone)]
-#[tag = "inet4"]
-struct TupleV4 {
-    pub a: u8,
-    pub b: u8,
-    pub c: u8,
-    pub d: u8
 }
 
 struct NibblesV4 { pub n: [u8; 8]}
@@ -71,6 +47,31 @@ impl AsRef<[u8]> for NibblesV6 {
     }
 }
 
+
+#[derive(NifUntaggedEnum, Copy, Clone)]
+enum AddrTuple {
+    V4(TupleV4),
+    V6(TupleV6)
+}
+
+impl Maskable for AddrTuple {
+    fn mask(self, masklen: u32) -> Self {
+        match self {
+            AddrTuple::V4(tuple_v4) => AddrTuple::V4(tuple_v4.mask(masklen)),
+            AddrTuple::V6(tuple_v6) => AddrTuple::V6(tuple_v6.mask(masklen))
+        }
+    }
+}
+
+#[derive(Debug, NifRecord, Copy, Clone)]
+#[tag = "inet4"]
+struct TupleV4 {
+    pub a: u8,
+    pub b: u8,
+    pub c: u8,
+    pub d: u8
+}
+
 impl TupleV4 {
     pub fn from(num: u32) -> Self {
         TupleV4 {
@@ -86,7 +87,7 @@ impl TupleV4 {
     }
 }
 
-impl Address for TupleV4 {
+impl Maskable for TupleV4 {
     fn mask(self, masklen: u32) -> Self {
         debug_assert!(masklen <= 32);
         let ip = u32::from(self);
@@ -186,7 +187,7 @@ impl TupleV6 {
 
 }
 
-impl Address for TupleV6 {
+impl Maskable for TupleV6 {
 
     fn mask(self, masklen: u32) -> Self {
         debug_assert!(masklen <= 128);
@@ -312,7 +313,7 @@ fn memory<'a>(
     make_tuple(env, &[nodes.encode(env), results.encode(env)])
 }
 
-rustler::init!("Elixir.TreeBitmap.NIF",
+rustler::init!("Elixir.RoutingTable.TreeBitmap",
                [new,
                 new_with_capacity,
                 length,
