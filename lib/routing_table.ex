@@ -12,9 +12,10 @@ defmodule RoutingTable do
   table = RoutingTable.new()
   RoutingTable.add(table, {10, 69, 0, 0}, 16, :vpn)
   RoutingTable.add(table, {10, 69, 1, 0}, 24, :lan)
-  :vpn = RoutingTable.longest_match(table, {10, 69, 2, 1})
-  :lan = RoutingTable.longest_match(table, {10, 69, 1, 1})
-  nil = RoutingTable.longest_match(table, {10, 68, 1, 1})
+  :vpn = RoutingTable.lookup(table, {10, 69, 2, 1})
+  :lan = RoutingTable.lookup(table, {10, 69, 1, 1})
+  nil = RoutingTable.lookup(table, {10, 68, 1, 1})
+  false = RoutingTable.reachable?(table, {10, 68, 1, 1})
   ```
   """
 
@@ -44,47 +45,47 @@ defmodule RoutingTable do
     remove(tree, tree.i6, {:inet6, a, b, c, d, e, f, g, h}, masklen)
   end
 
-  @spec longest_match(t(), :inet.ip_address()) :: map() | nil
-  def longest_match(tree, ip)
+  @spec lookup(t(), :inet.ip_address()) :: map() | nil
+  def lookup(tree, ip)
 
-  def longest_match(tree, {a, b, c, d}) do
+  def lookup(tree, {a, b, c, d}) do
     longest_match(tree, tree.i4, {:inet4, a, b, c, d})
   end
 
-  def longest_match(tree, {a, b, c, d, e, f, g, h}) do
+  def lookup(tree, {a, b, c, d, e, f, g, h}) do
     longest_match(tree, tree.i6, {:inet6, a, b, c, d, e, f, g, h})
   end
 
-  @spec longest_match?(t(), :inet.ip_address()) :: boolean()
-  def longest_match?(tree, ip)
+  @spec match(t(), :inet.ip_address(), masklen()) :: map() | nil
+  def match(tree, ip, masklen)
 
-  def longest_match?(tree, {a, b, c, d}) do
-    longest_match?(tree, tree.i4, {:inet4, a, b, c, d})
-  end
-
-  def longest_match?(tree, {a, b, c, d, e, f, g, h}) do
-    longest_match?(tree, tree.i6, {:inet6, a, b, c, d, e, f, g, h})
-  end
-
-  @spec exact_match(t(), :inet.ip_address(), masklen()) :: map() | nil
-  def exact_match(tree, ip, masklen)
-
-  def exact_match(tree, {a, b, c, d}, masklen) do
+  def match(tree, {a, b, c, d}, masklen) do
     exact_match(tree, tree.i4, {:inet4, a, b, c, d}, masklen)
   end
 
-  def exact_match(tree, {a, b, c, d, e, f, g, h}, masklen) do
+  def match(tree, {a, b, c, d, e, f, g, h}, masklen) do
     exact_match(tree, tree.i6, {:inet6, a, b, c, d, e, f, g, h}, masklen)
   end
 
-  @spec exact_match?(t(), :inet.ip_address(), masklen()) :: boolean()
-  def exact_match?(tree, ip, masklen)
+  @spec reachable?(t(), :inet.ip_address()) :: boolean()
+  def reachable?(tree, ip)
 
-  def exact_match?(tree, {a, b, c, d}, masklen) do
+  def reachable?(tree, {a, b, c, d}) do
+    longest_match?(tree, tree.i4, {:inet4, a, b, c, d})
+  end
+
+  def reachable?(tree, {a, b, c, d, e, f, g, h}) do
+    longest_match?(tree, tree.i6, {:inet6, a, b, c, d, e, f, g, h})
+  end
+
+  @spec reachable?(t(), :inet.ip_address(), masklen()) :: boolean()
+  def reachable?(tree, ip, masklen)
+
+  def reachable?(tree, {a, b, c, d}, masklen) do
     exact_match?(tree, tree.i4, {:inet4, a, b, c, d}, masklen)
   end
 
-  def exact_match?(tree, {a, b, c, d, e, f, g, h}, masklen) do
+  def reachable?(tree, {a, b, c, d, e, f, g, h}, masklen) do
     exact_match?(tree, tree.i6, {:inet6, a, b, c, d, e, f, g, h}, masklen)
   end
 
@@ -140,13 +141,6 @@ defmodule RoutingTable do
     end
   end
 
-  defp longest_match?(_, tbm, ip) do
-	  case TreeBitmap.longest_match(tbm, ip) do
-      {:ok, nil} -> false
-      {:ok, _, _, _} -> true
-    end
-  end
-
   defp exact_match(tree, tbm, ip, masklen) do
     case TreeBitmap.exact_match(tbm, ip, masklen) do
       {:ok, nil} ->
@@ -154,6 +148,13 @@ defmodule RoutingTable do
       {:ok, id} ->
         [{^id, _refc, value}] = :ets.lookup(tree.ets, id)
         value
+    end
+  end
+
+  defp longest_match?(_, tbm, ip) do
+	  case TreeBitmap.longest_match(tbm, ip) do
+      {:ok, nil} -> false
+      {:ok, _, _, _} -> true
     end
   end
 
