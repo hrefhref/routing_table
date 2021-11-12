@@ -550,5 +550,4 @@ mod tests {
             assert_eq!(*alloc.get(&hdl, i), 1000 + i + 1);
         }
     }
-
 }

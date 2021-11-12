@@ -1,12 +1,14 @@
+use rustler::{
+    resource::ResourceArc, types::tuple::make_tuple, Encoder, Env, NifRecord, NifResult,
+    NifUntaggedEnum, Term,
+};
 use std::sync::Mutex;
-use rustler::{resource::ResourceArc, NifResult, NifRecord, NifUntaggedEnum,
-              Encoder, Env, Term, types::tuple::make_tuple};
 
 mod tree_bitmap;
 use tree_bitmap::TreeBitmap;
 
 struct TableResource {
-    pub tree: Mutex<TreeBitmap<u32>>
+    pub tree: Mutex<TreeBitmap<u32>>,
 }
 
 mod atoms {
@@ -21,16 +23,23 @@ trait Maskable {
     fn mask(self, masklen: u32) -> Self;
 }
 
-struct NibblesV4 { pub n: [u8; 8]}
-struct NibblesV6 { pub n: [u8; 32]}
+struct NibblesV4 {
+    pub n: [u8; 8],
+}
+struct NibblesV6 {
+    pub n: [u8; 32],
+}
 
-enum Nibbles { V4(NibblesV4), V6(NibblesV6) }
+enum Nibbles {
+    V4(NibblesV4),
+    V6(NibblesV6),
+}
 
 impl AsRef<[u8]> for Nibbles {
     fn as_ref(&self) -> &[u8] {
         match self {
             Nibbles::V4(nib4) => nib4.as_ref(),
-            Nibbles::V6(nib6) => nib6.as_ref()
+            Nibbles::V6(nib6) => nib6.as_ref(),
         }
     }
 }
@@ -47,18 +56,17 @@ impl AsRef<[u8]> for NibblesV6 {
     }
 }
 
-
 #[derive(NifUntaggedEnum, Copy, Clone)]
 enum AddrTuple {
     V4(TupleV4),
-    V6(TupleV6)
+    V6(TupleV6),
 }
 
 impl Maskable for AddrTuple {
     fn mask(self, masklen: u32) -> Self {
         match self {
             AddrTuple::V4(tuple_v4) => AddrTuple::V4(tuple_v4.mask(masklen)),
-            AddrTuple::V6(tuple_v6) => AddrTuple::V6(tuple_v6.mask(masklen))
+            AddrTuple::V6(tuple_v6) => AddrTuple::V6(tuple_v6.mask(masklen)),
         }
     }
 }
@@ -69,7 +77,7 @@ struct TupleV4 {
     pub a: u8,
     pub b: u8,
     pub c: u8,
-    pub d: u8
+    pub d: u8,
 }
 
 impl TupleV4 {
@@ -97,14 +105,13 @@ impl Maskable for TupleV4 {
         };
         TupleV4::from(masked)
     }
-
 }
 
 impl ::std::convert::From<AddrTuple> for Nibbles {
     fn from(a: AddrTuple) -> Nibbles {
         match a {
             AddrTuple::V4(v4) => Nibbles::from(v4),
-            AddrTuple::V6(v6) => Nibbles::from(v6)
+            AddrTuple::V6(v6) => Nibbles::from(v6),
         }
     }
 }
@@ -121,13 +128,9 @@ impl ::std::convert::From<TupleV4> for Nibbles {
     }
 }
 
-
 impl ::std::convert::From<TupleV4> for u32 {
     fn from(a: TupleV4) -> u32 {
-        (a.a as u32) << 24
-            | (a.b as u32) << 16
-            | (a.c as u32) << 8
-            | (a.d as u32) << 0
+        (a.a as u32) << 24 | (a.b as u32) << 16 | (a.c as u32) << 8 | (a.d as u32) << 0
     }
 }
 
@@ -141,13 +144,21 @@ struct TupleV6 {
     pub a5: u16,
     pub a6: u16,
     pub a7: u16,
-    pub a8: u16
+    pub a8: u16,
 }
 
 impl TupleV6 {
-
     fn new(a1: u16, a2: u16, a3: u16, a4: u16, a5: u16, a6: u16, a7: u16, a8: u16) -> Self {
-        TupleV6 { a1: a1, a2, a3: a3, a4: a4, a5: a5, a6: a6, a7: a7, a8: a8 }
+        TupleV6 {
+            a1: a1,
+            a2: a2,
+            a3: a3,
+            a4: a4,
+            a5: a5,
+            a6: a6,
+            a7: a7,
+            a8: a8,
+        }
     }
 
     fn octets(&self) -> [u8; 16] {
@@ -167,7 +178,7 @@ impl TupleV6 {
             (self.a7 >> 8) as u8,
             self.a7 as u8,
             (self.a8 >> 8) as u8,
-            self.a8 as u8
+            self.a8 as u8,
         ]
     }
 
@@ -184,11 +195,9 @@ impl TupleV6 {
             (bytes[14] as u16) << 8 | (bytes[15] as u16),
         ]
     }
-
 }
 
 impl Maskable for TupleV6 {
-
     fn mask(self, masklen: u32) -> Self {
         debug_assert!(masklen <= 128);
         let mut ret = self.segments();
@@ -202,7 +211,6 @@ impl Maskable for TupleV6 {
             ret[0], ret[1], ret[2], ret[3], ret[4], ret[5], ret[6], ret[7],
         )
     }
-
 }
 
 impl ::std::convert::From<TupleV6> for Nibbles {
@@ -214,15 +222,14 @@ impl ::std::convert::From<TupleV6> for Nibbles {
             ret[i * 2 + 1] = byte & 0xf;
         }
         Nibbles::V6(NibblesV6 { n: ret })
-   }
+    }
 }
-
 
 #[rustler::nif]
 fn new() -> NifResult<ResourceArc<TableResource>> {
     let tree = TreeBitmap::new();
     let resource = ResourceArc::new(TableResource {
-        tree: Mutex::new(tree)
+        tree: Mutex::new(tree),
     });
     Ok(resource)
 }
@@ -231,7 +238,7 @@ fn new() -> NifResult<ResourceArc<TableResource>> {
 fn new_with_capacity(n: usize) -> NifResult<ResourceArc<TableResource>> {
     let tree = TreeBitmap::with_capacity(n);
     let resource = ResourceArc::new(TableResource {
-        tree: Mutex::new(tree)
+        tree: Mutex::new(tree),
     });
     Ok(resource)
 }
@@ -248,7 +255,7 @@ fn add<'a>(
     table_resource: ResourceArc<TableResource>,
     ip: AddrTuple,
     masklen: u32,
-    value: u32
+    value: u32,
 ) -> Term {
     let mut tree = table_resource.tree.lock().unwrap();
     if let Some(value) = tree.insert(Nibbles::from(ip).as_ref(), masklen, value) {
@@ -263,7 +270,7 @@ fn remove<'a>(
     env: Env<'a>,
     table_resource: ResourceArc<TableResource>,
     ip: AddrTuple,
-    masklen: u32
+    masklen: u32,
 ) -> Term {
     let mut tree = table_resource.tree.lock().unwrap();
     if let Some(value) = tree.remove(Nibbles::from(ip).as_ref(), masklen) {
@@ -277,12 +284,20 @@ fn remove<'a>(
 fn longest_match<'a>(
     env: Env<'a>,
     table_resource: ResourceArc<TableResource>,
-    ip: AddrTuple
+    ip: AddrTuple,
 ) -> Term {
     let tree = table_resource.tree.lock().unwrap();
     if let Some((bits_matched, value)) = tree.longest_match(Nibbles::from(ip).as_ref()) {
         let prefix = ip.mask(bits_matched);
-        make_tuple(env, &[atoms::ok().encode(env), prefix.encode(env), bits_matched.encode(env), value.encode(env)])
+        make_tuple(
+            env,
+            &[
+                atoms::ok().encode(env),
+                prefix.encode(env),
+                bits_matched.encode(env),
+                value.encode(env),
+            ],
+        )
     } else {
         make_tuple(env, &[atoms::ok().encode(env), atoms::nil().encode(env)])
     }
@@ -293,7 +308,7 @@ fn exact_match<'a>(
     env: Env<'a>,
     table_resource: ResourceArc<TableResource>,
     ip: AddrTuple,
-    masklen: u32
+    masklen: u32,
 ) -> Term {
     let tree = table_resource.tree.lock().unwrap();
     if let Some(value) = tree.exact_match(Nibbles::from(ip).as_ref(), masklen) {
@@ -304,25 +319,26 @@ fn exact_match<'a>(
 }
 
 #[rustler::nif]
-fn memory<'a>(
-    env: Env<'a>,
-    table_resource: ResourceArc<TableResource>
-) -> Term {
+fn memory<'a>(env: Env<'a>, table_resource: ResourceArc<TableResource>) -> Term {
     let tree = table_resource.tree.lock().unwrap();
     let (nodes, results) = tree.mem_usage();
     make_tuple(env, &[nodes.encode(env), results.encode(env)])
 }
 
-rustler::init!("Elixir.RoutingTable.TreeBitmap",
-               [new,
-                new_with_capacity,
-                length,
-                add,
-                remove,
-                longest_match,
-                exact_match,
-                memory],
-               load = on_load);
+rustler::init!(
+    "Elixir.RoutingTable.TreeBitmap",
+    [
+        new,
+        new_with_capacity,
+        length,
+        add,
+        remove,
+        longest_match,
+        exact_match,
+        memory
+    ],
+    load = on_load
+);
 
 fn on_load(env: Env, _info: Term) -> bool {
     rustler::resource!(TableResource, env);
