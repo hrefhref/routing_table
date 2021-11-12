@@ -18,23 +18,16 @@ mod atoms {
 }
 
 trait Address {
-    fn nibbles(self) -> Nibbles;
     fn mask(self, masklen: u32) -> Self;
 }
 
-#[derive(NifUntaggedEnum, Clone)]
+#[derive(NifUntaggedEnum, Copy, Clone)]
 enum AddrTuple {
     V4(TupleV4),
     V6(TupleV6)
 }
 
 impl Address for AddrTuple {
-    fn nibbles(self) -> Nibbles {
-        match self {
-            AddrTuple::V4(tuple_v4) => tuple_v4.nibbles(),
-            AddrTuple::V6(tuple_v6) => tuple_v6.nibbles()
-        }
-    }
     fn mask(self, masklen: u32) -> Self {
         match self {
             AddrTuple::V4(tuple_v4) => AddrTuple::V4(tuple_v4.mask(masklen)),
@@ -43,7 +36,7 @@ impl Address for AddrTuple {
     }
 }
 
-#[derive(Debug, NifRecord, Clone)]
+#[derive(Debug, NifRecord, Copy, Clone)]
 #[tag = "inet4"]
 struct TupleV4 {
     pub a: u8,
@@ -52,15 +45,33 @@ struct TupleV4 {
     pub d: u8
 }
 
-enum Nibbles {
-    V4([u8; 8]),
-    V6([u8; 32])
+struct NibblesV4 { pub n: [u8; 8]}
+struct NibblesV6 { pub n: [u8; 32]}
+
+enum Nibbles { V4(NibblesV4), V6(NibblesV6) }
+
+impl AsRef<[u8]> for Nibbles {
+    fn as_ref(&self) -> &[u8] {
+        match self {
+            Nibbles::V4(nib4) => nib4.as_ref(),
+            Nibbles::V6(nib6) => nib6.as_ref()
+        }
+    }
+}
+
+impl AsRef<[u8]> for NibblesV4 {
+    fn as_ref(&self) -> &[u8] {
+        &self.n
+    }
+}
+
+impl AsRef<[u8]> for NibblesV6 {
+    fn as_ref(&self) -> &[u8] {
+        &self.n
+    }
 }
 
 impl TupleV4 {
-    pub fn new(a1: u8, a2: u8, a3: u8, a4: u8) -> Self {
-        TupleV4 { a: a1, b: a2, c: a3, d: a4 }
-    }
     pub fn from(num: u32) -> Self {
         TupleV4 {
             a: (num >> 24) as u8,
@@ -69,19 +80,13 @@ impl TupleV4 {
             d: num as u8,
         }
     }
+
+    pub fn octets(&self) -> [u8; 4] {
+        [self.a, self.b, self.c, self.d]
+    }
 }
 
 impl Address for TupleV4 {
-    fn nibbles(self) -> Nibbles {
-        let mut ret: [u8; 8] = [0; 8];
-        let bytes: [u8; 4] = [self.a, self.b, self.c, self.d];
-        for (i, byte) in bytes.iter().enumerate() {
-            ret[i * 2] = byte >> 4;
-            ret[i * 2 + 1] = byte & 0xf;
-        }
-        Nibbles::V4(ret)
-    }
-
     fn mask(self, masklen: u32) -> Self {
         debug_assert!(masklen <= 32);
         let ip = u32::from(self);
@@ -93,6 +98,29 @@ impl Address for TupleV4 {
     }
 
 }
+
+impl ::std::convert::From<AddrTuple> for Nibbles {
+    fn from(a: AddrTuple) -> Nibbles {
+        match a {
+            AddrTuple::V4(v4) => Nibbles::from(v4),
+            AddrTuple::V6(v6) => Nibbles::from(v6)
+        }
+    }
+}
+
+impl ::std::convert::From<TupleV4> for Nibbles {
+    fn from(a: TupleV4) -> Nibbles {
+        let mut ret: [u8; 8] = [0; 8];
+        let bytes: [u8; 4] = a.octets();
+        for (i, byte) in bytes.iter().enumerate() {
+            ret[i * 2] = byte >> 4;
+            ret[i * 2 + 1] = byte & 0xf;
+        }
+        Nibbles::V4(NibblesV4 { n: ret })
+    }
+}
+
+
 impl ::std::convert::From<TupleV4> for u32 {
     fn from(a: TupleV4) -> u32 {
         (a.a as u32) << 24
@@ -102,7 +130,7 @@ impl ::std::convert::From<TupleV4> for u32 {
     }
 }
 
-#[derive(Debug, NifRecord, Clone)]
+#[derive(Debug, NifRecord, Copy, Clone)]
 #[tag = "inet6"]
 struct TupleV6 {
     pub a1: u16,
@@ -121,7 +149,7 @@ impl TupleV6 {
         TupleV6 { a1: a1, a2, a3: a3, a4: a4, a5: a5, a6: a6, a7: a7, a8: a8 }
     }
 
-    fn octets(self) -> [u8; 16] {
+    fn octets(&self) -> [u8; 16] {
         [
             (self.a1 >> 8) as u8,
             self.a1 as u8,
@@ -142,7 +170,7 @@ impl TupleV6 {
         ]
     }
 
-    fn segments(self) -> [u16; 8] {
+    fn segments(&self) -> [u16; 8] {
         let bytes = self.octets();
         [
             (bytes[0] as u16) << 8 | (bytes[1] as u16),
@@ -160,16 +188,6 @@ impl TupleV6 {
 
 impl Address for TupleV6 {
 
-    fn nibbles(self) -> Nibbles {
-        let mut ret: [u8; 32] = [0; 32];
-        let bytes = self.octets();
-        for (i, byte) in bytes.iter().enumerate() {
-            ret[i * 2] = byte >> 4;
-            ret[i * 2 + 1] = byte & 0xf;
-        }
-        Nibbles::V6(ret)
-    }
-
     fn mask(self, masklen: u32) -> Self {
         debug_assert!(masklen <= 128);
         let mut ret = self.segments();
@@ -185,6 +203,19 @@ impl Address for TupleV6 {
     }
 
 }
+
+impl ::std::convert::From<TupleV6> for Nibbles {
+    fn from(a: TupleV6) -> Nibbles {
+        let mut ret: [u8; 32] = [0; 32];
+        let bytes = a.octets();
+        for (i, byte) in bytes.iter().enumerate() {
+            ret[i * 2] = byte >> 4;
+            ret[i * 2 + 1] = byte & 0xf;
+        }
+        Nibbles::V6(NibblesV6 { n: ret })
+   }
+}
+
 
 #[rustler::nif]
 fn new() -> NifResult<ResourceArc<TableResource>> {
@@ -219,11 +250,7 @@ fn add<'a>(
     value: u32
 ) -> Term {
     let mut tree = table_resource.tree.lock().unwrap();
-    let result = match ip.nibbles() {
-        Nibbles::V4(nibbles) => tree.insert(&nibbles.as_ref(), masklen, value),
-        Nibbles::V6(nibbles) => tree.insert(&nibbles.as_ref(), masklen, value)
-    };
-    if let Some(value) = result {
+    if let Some(value) = tree.insert(Nibbles::from(ip).as_ref(), masklen, value) {
         make_tuple(env, &[atoms::ok().encode(env), value.encode(env)])
     } else {
         make_tuple(env, &[atoms::ok().encode(env), atoms::nil().encode(env)])
@@ -238,11 +265,7 @@ fn remove<'a>(
     masklen: u32
 ) -> Term {
     let mut tree = table_resource.tree.lock().unwrap();
-    let result = match ip.nibbles() {
-        Nibbles::V4(nibbles) => tree.remove(&nibbles.as_ref(), masklen),
-        Nibbles::V6(nibbles) => tree.remove(&nibbles.as_ref(), masklen),
-    };
-    if let Some(value) = result {
+    if let Some(value) = tree.remove(Nibbles::from(ip).as_ref(), masklen) {
         make_tuple(env, &[atoms::ok().encode(env), value.encode(env)])
     } else {
         make_tuple(env, &[atoms::ok().encode(env), atoms::nil().encode(env)])
@@ -256,12 +279,7 @@ fn longest_match<'a>(
     ip: AddrTuple
 ) -> Term {
     let tree = table_resource.tree.lock().unwrap();
-    let ip2 = ip.clone();
-    let result = match ip2.nibbles() {
-        Nibbles::V4(nibbles) => tree.longest_match(&nibbles.as_ref()),
-        Nibbles::V6(nibbles) => tree.longest_match(&nibbles.as_ref())
-    };
-    if let Some((bits_matched, value)) = result {
+    if let Some((bits_matched, value)) = tree.longest_match(Nibbles::from(ip).as_ref()) {
         let prefix = ip.mask(bits_matched);
         make_tuple(env, &[atoms::ok().encode(env), prefix.encode(env), bits_matched.encode(env), value.encode(env)])
     } else {
@@ -277,12 +295,7 @@ fn exact_match<'a>(
     masklen: u32
 ) -> Term {
     let tree = table_resource.tree.lock().unwrap();
-    let ip2 = ip.clone();
-    let result = match ip2.nibbles() {
-        Nibbles::V4(nibbles) => tree.exact_match(&nibbles.as_ref(), masklen),
-        Nibbles::V6(nibbles) => tree.exact_match(&nibbles.as_ref(), masklen)
-    };
-    if let Some(value) = result {
+    if let Some(value) = tree.exact_match(Nibbles::from(ip).as_ref(), masklen) {
         make_tuple(env, &[atoms::ok().encode(env), value.encode(env)])
     } else {
         make_tuple(env, &[atoms::ok().encode(env), atoms::nil().encode(env)])
