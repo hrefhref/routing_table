@@ -17,7 +17,7 @@ pub const END_BIT_MASK: u32 = !END_BIT; // all bits except the end node bit
 type Table = [[u32; 16]; 5];
 const IS_END_NODE: u32 = 1 << 16;
 
-#[cfg_attr(rustfmt, rustfmt_skip)]
+#[rustfmt::skip]
 static INTERNAL_LOOKUP_TABLE: Table = [
     // mask = 00000, 0/0
     [1<<31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -37,7 +37,7 @@ static INTERNAL_LOOKUP_TABLE: Table = [
 
 pub const MSB: u32 = 1 << 31;
 
-#[cfg_attr(rustfmt, rustfmt_skip)]
+#[rustfmt::skip]
 pub static MATCH_MASKS: [u32; 16] = [MSB | MSB >> 1 | MSB >> 3 | MSB >>  7 | MSB >> 16, // 0000
                                      MSB | MSB >> 1 | MSB >> 3 | MSB >>  7 | MSB >> 17, // 0001
                                      MSB | MSB >> 1 | MSB >> 3 | MSB >>  8 | MSB >> 18, // 0010
@@ -115,7 +115,7 @@ pub const BIT_MATCH: [u32; 32] = [
     0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 0, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
 ];
 
-#[cfg_attr(rustfmt, rustfmt_skip)]
+#[rustfmt::skip]
 const BIT_MEANING: &[&str] = &[
     "*",
     "0*", "1*",

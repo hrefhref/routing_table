@@ -147,12 +147,9 @@ impl<T: Sized> TreeBitmap<T> {
             }
         }
 
-        match best_match {
-            Some((result_hdl, result_index)) => {
-                Some((bits_matched, self.results.get(&result_hdl, result_index)))
-            }
-            None => None,
-        }
+        best_match.map(|(result_hdl, result_index)| {
+            (bits_matched, self.results.get(&result_hdl, result_index))
+        })
     }
 
     pub fn insert(&mut self, nibbles: &[u8], masklen: u32, value: T) -> Option<T> {
@@ -401,7 +398,7 @@ pub struct IterMut<'a, T: 'a> {
     nibbles: Vec<u8>,
 }
 
-#[cfg_attr(rustfmt, rustfmt_skip)]
+#[rustfmt::skip]
 static PREFIX_OF_BIT: [u8; 32] = [// 0       1       2      3        4       5       6       7
                                   0b0000, 0b0000, 0b1000, 0b0000, 0b0100, 0b1000, 0b1100, 0b0000,
                                   // 8       9      10      11      12      13      14      15
